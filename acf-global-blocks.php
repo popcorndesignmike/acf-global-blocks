@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ACF Global Blocks
  * Description: Save an ACF Flexible Content row as a reusable global block and insert it into compatible Flexible Content fields.
- * Version: 1.3.14
+ * Version: 1.3.15
  * Author: Popcorn Web Design
  * Requires at least: 6.2
  * Requires PHP: 7.4
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 
 final class ACF_Global_Blocks
 {
-    private const VERSION = '1.3.14';
+    private const VERSION = '1.3.15';
     private const POST_TYPE = 'acf_global_block';
     private const LAYOUT_NAME = 'acf_global_block';
     private const META_FIELD_KEY = '_acf_global_blocks_field_key';
@@ -1469,7 +1469,11 @@ final class ACF_Global_Blocks
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * Return a flat choice map so ACF can retain the selected option when it
+     * reduces an AJAX select to its current value during server-side render.
+     * AJAX search results are grouped separately in ajax_search_blocks().
+     *
+     * @return array<int, string>
      */
     private static function get_block_choices(string $field_key): array
     {
@@ -1484,22 +1488,14 @@ final class ACF_Global_Blocks
             'suppress_filters' => false,
         ]);
 
-        $choices = [
-            __('Individual blocks', 'acf-global-blocks') => [],
-            __('Block groups', 'acf-global-blocks') => [],
-        ];
+        $choices = [];
 
         foreach ($posts as $post) {
-            $rows = get_post_meta($post->ID, self::META_ROWS, true);
-            $group_label = is_array($rows) && count($rows) > 1
-                ? __('Block groups', 'acf-global-blocks')
-                : __('Individual blocks', 'acf-global-blocks');
-
-            $choices[$group_label][$post->ID] = $post->post_title
+            $choices[$post->ID] = $post->post_title
                 ?: sprintf(__('Global block #%d', 'acf-global-blocks'), $post->ID);
         }
 
-        return array_filter($choices);
+        return $choices;
     }
 
     /**
