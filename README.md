@@ -25,6 +25,8 @@ No theme changes are needed when the theme already renders Flexible Content rows
 6. Choose **Linked** to keep it synced with a local fail-safe snapshot, or **Standalone copy** to import it as a normal editable row when the page is saved.
 7. Edit linked content later under **Global Blocks** in the WordPress admin menu. Changes are reflected on every page that references the block.
 
+The Global Block selector searches with AJAX, so blocks created in another tab or earlier in the same editing session appear in search results without reloading the page.
+
 A standalone copy is disconnected immediately after the page is saved. It can then be edited like any other Flexible Content row, and later changes to the source global block will not affect it.
 
 ## Global block groups

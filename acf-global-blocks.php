@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ACF Global Blocks
  * Description: Save an ACF Flexible Content row as a reusable global block and insert it into compatible Flexible Content fields.
- * Version: 1.3.12
+ * Version: 1.3.13
  * Author: Popcorn Web Design
  * Requires at least: 6.2
  * Requires PHP: 7.4
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 
 final class ACF_Global_Blocks
 {
-    private const VERSION = '1.3.12';
+    private const VERSION = '1.3.13';
     private const POST_TYPE = 'acf_global_block';
     private const LAYOUT_NAME = 'acf_global_block';
     private const META_FIELD_KEY = '_acf_global_blocks_field_key';
@@ -42,6 +42,7 @@ final class ACF_Global_Blocks
         add_action('add_meta_boxes_' . self::POST_TYPE, [self::class, 'add_meta_boxes']);
         add_action('save_post_' . self::POST_TYPE, [self::class, 'save_global_block']);
         add_action('wp_ajax_acf_global_blocks_save_row', [self::class, 'ajax_save_row']);
+        add_action('wp_ajax_acf_global_blocks_search', [self::class, 'ajax_search_blocks']);
         add_action('acf/input/admin_enqueue_scripts', [self::class, 'enqueue_admin_assets']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_admin_list_assets']);
         add_action('admin_menu', [self::class, 'register_settings_page']);
@@ -317,11 +318,12 @@ final class ACF_Global_Blocks
                 'allow_null' => 0,
                 'multiple' => 0,
                 'ui' => 1,
-                'ajax' => 0,
+                'ajax' => 1,
                 'return_format' => 'value',
                 'parent' => $layout_key,
                 'wrapper' => [
                     'width' => 60,
+                    'class' => 'acf-global-blocks-reference-field',
                 ],
             ]), self::prepare_dynamic_field([
                 'key' => self::mode_field_key($field_key),
@@ -615,6 +617,7 @@ final class ACF_Global_Blocks
         wp_localize_script('acf-global-blocks-admin', 'ACFGlobalBlocks', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('acf_global_blocks_save_row'),
+            'searchNonce' => wp_create_nonce('acf_global_blocks_search'),
             'layoutName' => self::LAYOUT_NAME,
             'promptTitle' => __('Name this global block:', 'acf-global-blocks'),
             'promptGroupTitle' => __('Name this global block group:', 'acf-global-blocks'),
@@ -727,6 +730,69 @@ final class ACF_Global_Blocks
                 ? __('Global block group saved.', 'acf-global-blocks')
                 : __('Global block saved.', 'acf-global-blocks'),
             'editUrl' => get_edit_post_link($post_id, 'raw'),
+        ]);
+    }
+
+    public static function ajax_search_blocks(): void
+    {
+        check_ajax_referer('acf_global_blocks_search', 'nonce');
+
+        if (!current_user_can('edit_posts')) {
+            wp_send_json_error(['message' => __('You are not allowed to search global blocks.', 'acf-global-blocks')], 403);
+        }
+
+        $field_key = sanitize_key(wp_unslash($_POST['global_field_key'] ?? ''));
+        $search = sanitize_text_field(wp_unslash($_POST['s'] ?? $_POST['term'] ?? ''));
+        $page = max(1, absint($_POST['paged'] ?? $_POST['page'] ?? 1));
+
+        if ($field_key === '') {
+            wp_send_json_error(['message' => __('A Flexible Content field is required.', 'acf-global-blocks')], 400);
+        }
+
+        $field = acf_get_field($field_key);
+        if (!is_array($field) || ($field['type'] ?? '') !== 'flexible_content' || !self::field_is_enabled($field)) {
+            wp_send_json_error(['message' => __('This Flexible Content field is not available for global blocks.', 'acf-global-blocks')], 400);
+        }
+
+        $query = new \WP_Query([
+            'post_type' => self::POST_TYPE,
+            'post_status' => 'publish',
+            'posts_per_page' => 20,
+            'paged' => $page,
+            'orderby' => 'title',
+            'order' => 'ASC',
+            's' => $search,
+            'meta_key' => self::META_FIELD_KEY,
+            'meta_value' => $field_key,
+            'no_found_rows' => false,
+        ]);
+
+        $grouped = [
+            'individual' => [
+                'text' => __('Individual blocks', 'acf-global-blocks'),
+                'children' => [],
+            ],
+            'group' => [
+                'text' => __('Block groups', 'acf-global-blocks'),
+                'children' => [],
+            ],
+        ];
+
+        foreach ($query->posts as $post) {
+            $rows = get_post_meta($post->ID, self::META_ROWS, true);
+            $type = is_array($rows) && count($rows) > 1 ? 'group' : 'individual';
+            $grouped[$type]['children'][] = [
+                'id' => (string) $post->ID,
+                'text' => $post->post_title ?: sprintf(__('Global block #%d', 'acf-global-blocks'), $post->ID),
+            ];
+        }
+
+        wp_send_json_success([
+            'results' => array_values(array_filter(
+                $grouped,
+                static fn(array $group): bool => !empty($group['children'])
+            )),
+            'more' => ($page < $query->max_num_pages),
         ]);
     }
 

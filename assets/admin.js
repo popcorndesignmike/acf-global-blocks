@@ -239,6 +239,21 @@
     });
   }
 
+  acf.addFilter('select2_ajax_data', function (data, args, $input) {
+    var $referenceField = $input.closest('.acf-global-blocks-reference-field');
+
+    if (!$referenceField.length) {
+      return data;
+    }
+
+    var $flexibleField = $referenceField.closest('.acf-field-flexible-content');
+    data.action = 'acf_global_blocks_search';
+    data.nonce = config.searchNonce;
+    data.global_field_key = $flexibleField.data('key') || '';
+
+    return data;
+  });
+
   acf.addAction('ready', function () {
     addControls($(document));
   });
