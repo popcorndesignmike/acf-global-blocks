@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ACF Global Blocks
  * Description: Save an ACF Flexible Content row as a reusable global block and insert it into compatible Flexible Content fields.
- * Version: 1.3.13
+ * Version: 1.3.14
  * Author: Popcorn Web Design
  * Requires at least: 6.2
  * Requires PHP: 7.4
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 
 final class ACF_Global_Blocks
 {
-    private const VERSION = '1.3.13';
+    private const VERSION = '1.3.14';
     private const POST_TYPE = 'acf_global_block';
     private const LAYOUT_NAME = 'acf_global_block';
     private const META_FIELD_KEY = '_acf_global_blocks_field_key';
@@ -787,7 +787,10 @@ final class ACF_Global_Blocks
             ];
         }
 
-        wp_send_json_success([
+        // ACF's Select2 adapter expects the results object at the JSON root.
+        // Unlike regular WordPress AJAX responses, this must not be wrapped in
+        // a `success` / `data` envelope.
+        wp_send_json([
             'results' => array_values(array_filter(
                 $grouped,
                 static fn(array $group): bool => !empty($group['children'])
